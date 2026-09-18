@@ -116,6 +116,7 @@ public class CarPhysics {
             speed *= 1.025;
         } else {
             lastShiftResult = ShiftResult.OVER_REV;
+            speed *= 0.96;
         }
 
         shiftFeedbackTimer = 1.2; // Show on screen for 1.2 seconds

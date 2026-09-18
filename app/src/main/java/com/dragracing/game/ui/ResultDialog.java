@@ -45,6 +45,10 @@ public class ResultDialog extends Dialog {
 
         TextView tvTitle = findViewById(R.id.tvResultTitle);
         TextView tvPrize = findViewById(R.id.tvPrizeCash);
+        TextView tvBasePrize = findViewById(R.id.tvBasePrize);
+        TextView tvLaunchBonus = findViewById(R.id.tvLaunchBonus);
+        TextView tvShiftBonus = findViewById(R.id.tvShiftBonus);
+        TextView tvOvertakeBonus = findViewById(R.id.tvOvertakeBonus);
         TextView tvPlayerET = findViewById(R.id.tvPlayerET);
         TextView tvOpponentET = findViewById(R.id.tvOpponentET);
         TextView tvTopSpeed = findViewById(R.id.tvTopSpeed);
@@ -84,6 +88,10 @@ public class ResultDialog extends Dialog {
         }
 
         tvPrize.setText(String.format(Locale.US, "+$%d", prize));
+        tvBasePrize.setText(String.format(Locale.US, "+$%d", engine.getBasePrizeForDisplay()));
+        tvLaunchBonus.setText(String.format(Locale.US, "+$%d", engine.getLaunchBonus()));
+        tvShiftBonus.setText(String.format(Locale.US, "+$%d", engine.getShiftBonus()));
+        tvOvertakeBonus.setText(String.format(Locale.US, "+$%d", engine.getOvertakeBonus()));
         tvPlayerET.setText(String.format(Locale.US, "%.3f s", engine.getPlayerElapsedTime()));
         tvOpponentET.setText(String.format(Locale.US, "%.3f s", engine.getOpponentElapsedTime()));
         tvTopSpeed.setText(String.format(Locale.US, "%.1f km/h", engine.getPlayerTopSpeedKmh()));

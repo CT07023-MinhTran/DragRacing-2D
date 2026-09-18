@@ -119,13 +119,26 @@ public class GameActivity extends AppCompatActivity {
                 base = allCars.get(index);
             }
         } else {
-            // Quick race uses the player's current car as the opponent baseline.
-            base = playerCar;
+            // Quick race can use a different model; performance is tuned below.
+            base = allCars.get(new Random().nextInt(allCars.size()));
         }
 
         // Clone car specs for AI opponent
-        double hpMult = "QUICK".equals(mode) ? 1.0 : (0.85 + diff * 0.08);
+        double hpMult = "QUICK".equals(mode) ? getQuickRaceOpponentMultiplier(diff) : (0.85 + diff * 0.08);
         if (isBossRace) hpMult += 0.15; // Bosses are harder
+
+        double horsepower = "QUICK".equals(mode)
+            ? playerCar.getEffectiveHorsepower() * hpMult
+            : base.getBaseHorsepower() * hpMult;
+        double weight = "QUICK".equals(mode)
+            ? playerCar.getEffectiveWeight() / hpMult
+            : base.getBaseWeight();
+        double grip = "QUICK".equals(mode)
+            ? playerCar.getEffectiveGrip() * (0.96 + (hpMult - 1.0) * 0.15)
+            : base.getBaseGrip();
+        double shiftTime = "QUICK".equals(mode)
+            ? Math.max(0.08, playerCar.getShiftTimeSeconds() / (0.98 + (hpMult - 1.0) * 0.35))
+            : base.getBaseShiftTime();
 
         Car opp = new Car(
                 "ai_" + base.getId(),
@@ -133,10 +146,10 @@ public class GameActivity extends AppCompatActivity {
                 base.getCarClass(),
                 base.getPrice(),
                 Color.parseColor(isBossRace ? "#FFD600" : "#E91E63"), 
-                base.getBaseHorsepower() * hpMult,
-                base.getBaseWeight(),
-                base.getBaseGrip(),
-                base.getBaseShiftTime(),
+                horsepower,
+                weight,
+                grip,
+                shiftTime,
                 base.getMaxRpm(),
                 base.getIdleRpm(),
                 base.getOptimalShiftMinRpm(),
@@ -147,16 +160,6 @@ public class GameActivity extends AppCompatActivity {
         );
         opp.setImageResourceName(base.getImageResourceName());
 
-        if ("QUICK".equals(mode)) {
-            opp.setEngineLevel(base.getEngineLevel());
-            opp.setTurboLevel(base.getTurboLevel());
-            opp.setNitroLevel(base.getNitroLevel());
-            opp.setTiresLevel(base.getTiresLevel());
-            opp.setGearboxLevel(base.getGearboxLevel());
-            opp.setWeightLevel(base.getWeightLevel());
-            opp.setColor(base.getColor());
-        }
-
         // Equip AI with upgrades matching difficulty
         int level = "QUICK".equals(mode) ? 0 : Math.min(5, diff - 1);
         if (isBossRace) level = Math.min(5, diff);
@@ -166,6 +169,16 @@ public class GameActivity extends AppCompatActivity {
         opp.setNitroLevel(diff >= 2 ? level : 0);
 
         return opp;
+    }
+
+    private double getQuickRaceOpponentMultiplier(int diff) {
+        switch (diff) {
+            case 1: return 0.78;
+            case 2: return 1.00;
+            case 3: return 1.25;
+            case 4: return 1.60;
+            default: return 1.00;
+        }
     }
 
     private void showResultDialog(RaceEngine engine) {

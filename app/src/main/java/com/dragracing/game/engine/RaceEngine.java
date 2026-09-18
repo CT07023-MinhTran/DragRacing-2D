@@ -20,8 +20,6 @@ public class RaceEngine {
     private final CarPhysics opponentCar;
     private final String raceMode; // "QUICK", "CAREER", "TEST"
     private final int difficultyLevel; // 1 to 5
-    private final boolean playerWinTarget;
-
     private RaceState state = RaceState.STAGING;
     private double raceTimer = 0.0;
     private double countdownTimer = 0.0;
@@ -35,6 +33,8 @@ public class RaceEngine {
     private double aiReactionDelay = 0.35;
     private boolean aiLaunched = false;
     private boolean aiUsedNitro = false;
+    private double aiLaunchThrottle = 0.85;
+    private int aiShiftTargetRpm = 0;
 
     // Player metrics
     private double playerReactionTime = 0.0;
@@ -42,7 +42,10 @@ public class RaceEngine {
     private double playerTopSpeedKmh = 0.0;
     private int playerPerfectShifts = 0;
     private int playerGoodShifts = 0;
+    private int playerBadShifts = 0;
     private boolean playerFinished = false;
+    private boolean playerWasBehind = false;
+    private boolean playerOvertook = false;
 
     // Opponent metrics
     private double opponentElapsedTime = 0.0;
@@ -57,26 +60,11 @@ public class RaceEngine {
         this.raceMode = raceMode;
         this.difficultyLevel = difficultyLevel;
         this.raceDistance = raceDistance;
-        this.playerWinTarget = "QUICK".equals(raceMode)
-                && Math.random() < getPlayerWinChance(difficultyLevel);
-
         // Tune AI reaction delay based on difficulty
         this.aiReactionDelay = Math.max(0.08, 0.40 - (difficultyLevel * 0.06));
-        if (opponentCar != null && "QUICK".equals(raceMode)) {
-            opponentCar.setPerformanceMultiplier(playerWinTarget ? 0.90 : 1.10);
-            if (playerWinTarget) {
-                aiReactionDelay += 0.12;
-            }
-        }
-    }
-
-    private double getPlayerWinChance(int difficulty) {
-        switch (difficulty) {
-            case 1: return 0.90;
-            case 2: return 0.50;
-            case 3: return 0.15;
-            case 4: return 0.05;
-            default: return 0.50;
+        if (opponentCar != null) {
+            opponentCar.setPerformanceMultiplier(1.0);
+            aiLaunchThrottle = Math.random() < getAiLaunchMistakeChance() ? 1.0 : 0.85;
         }
     }
 
@@ -112,8 +100,10 @@ public class RaceEngine {
         CarPhysics.ShiftResult res = playerCar.shiftUp();
         if (res == CarPhysics.ShiftResult.PERFECT) {
             playerPerfectShifts++;
-        } else if (res == CarPhysics.ShiftResult.GOOD || res == CarPhysics.ShiftResult.OVER_REV) {
+        } else if (res == CarPhysics.ShiftResult.GOOD) {
             playerGoodShifts++;
+        } else if (res == CarPhysics.ShiftResult.OVER_REV) {
+            playerBadShifts++;
         }
         return res;
     }
@@ -154,7 +144,7 @@ public class RaceEngine {
             // Staging revving
             playerCar.update(dt);
             if (opponentCar != null) {
-                opponentCar.setThrottle(0.85);
+                opponentCar.setThrottle(aiLaunchThrottle);
                 opponentCar.update(dt);
             }
             return;
@@ -183,15 +173,16 @@ public class RaceEngine {
                 if (!aiLaunched && aiReactionTimer >= aiReactionDelay) {
                     aiLaunched = true;
                     opponentCar.launch();
+                    aiShiftTargetRpm = chooseAiShiftTargetRpm();
                 }
 
                 if (aiLaunched) {
-                    opponentCar.setThrottle(playerWinTarget ? 0.92 : 1.0);
+                    opponentCar.setThrottle(1.0);
 
                     // AI shifting logic
-                    int shiftTargetRpm = opponentCar.getCar().getOptimalShiftMinRpm() + (difficultyLevel * 100);
-                    if (opponentCar.getRpm() >= shiftTargetRpm) {
+                    if (opponentCar.getRpm() >= aiShiftTargetRpm) {
                         opponentCar.shiftUp();
+                        aiShiftTargetRpm = chooseAiShiftTargetRpm();
                     }
 
                     // AI Nitro in 2nd or 3rd gear
@@ -199,6 +190,13 @@ public class RaceEngine {
                         aiUsedNitro = true;
                         opponentCar.activateNitro();
                     }
+                }
+
+                if (!playerFinished && opponentCar.getDistance() > playerCar.getDistance() + 0.5) {
+                    playerWasBehind = true;
+                }
+                if (playerWasBehind && playerCar.getDistance() > opponentCar.getDistance() + 0.5) {
+                    playerOvertook = true;
                 }
 
                 opponentCar.update(dt);
@@ -243,22 +241,63 @@ public class RaceEngine {
     }
 
     public int calculatePrizeMoney() {
+        return getBasePrize() + getLaunchBonus() + getShiftBonus() + getOvertakeBonus();
+    }
+
+    private int getBasePrize() {
         if (falseStart) return 50;
-        // Adjust prize based on distance
         double distanceMultiplier = 1.0 + (raceDistance / DISTANCE_1_4 - 1.0) * 0.5;
         int basePrize = playerWon ? (800 + difficultyLevel * 400) : (250 + difficultyLevel * 100);
-        
-        // Bonus for Career Boss races
-        if (playerWon && "CAREER".equals(raceMode)) {
-            basePrize *= 1.5;
-        }
+        if (playerWon && "CAREER".equals(raceMode)) basePrize = (int) (basePrize * 1.5);
+        return (int) (basePrize * distanceMultiplier);
+    }
 
-        int prize = (int) (basePrize * distanceMultiplier);
-        
-        if (playerCar.isPerfectLaunch()) prize += 250;
-        prize += playerPerfectShifts * 100;
-        prize += playerGoodShifts * 40;
-        return prize;
+    public int getBasePrizeForDisplay() {
+        return getBasePrize();
+    }
+
+    public int getLaunchBonus() {
+        if (falseStart || playerCar.getLastLaunchResult() == CarPhysics.LaunchResult.BAD) return 0;
+        if (playerCar.getLastLaunchResult() == CarPhysics.LaunchResult.PERFECT) return 90;
+        if (playerCar.getLastLaunchResult() == CarPhysics.LaunchResult.GOOD) return 60;
+        return 0;
+    }
+
+    public int getShiftBonus() {
+        return playerPerfectShifts * 45 + playerGoodShifts * 25;
+    }
+
+    public int getOvertakeBonus() {
+        return playerWon && playerOvertook ? (int) (120 * (raceDistance / DISTANCE_1_4)) : 0;
+    }
+
+    private int chooseAiShiftTargetRpm() {
+        if (Math.random() < getAiMistakeChance()) {
+            return opponentCar.getCar().getOptimalShiftMaxRpm() + 400;
+        }
+        return opponentCar.getCar().getOptimalShiftMinRpm() + (difficultyLevel * 100);
+    }
+
+    private double getAiLaunchMistakeChance() {
+        if (!"QUICK".equals(raceMode)) return 0.03;
+        switch (difficultyLevel) {
+            case 1: return 0.20;
+            case 2: return 0.12;
+            case 3: return 0.08;
+            case 4: return 0.06;
+            default: return 0.12;
+        }
+    }
+
+    private double getAiMistakeChance() {
+        if (!"QUICK".equals(raceMode)) return 0.04;
+        switch (difficultyLevel) {
+            case 1: return 0.18;
+            case 2: return 0.12;
+            case 3: return 0.09;
+            case 4: return 0.07;
+            default: return 0.12;
+        }
     }
 
     // Getters
@@ -274,6 +313,8 @@ public class RaceEngine {
     public double getOpponentElapsedTime() { return opponentElapsedTime; }
     public double getOpponentTopSpeedKmh() { return opponentTopSpeedKmh; }
     public int getPlayerPerfectShifts() { return playerPerfectShifts; }
+    public int getPlayerGoodShifts() { return playerGoodShifts; }
+    public int getPlayerBadShifts() { return playerBadShifts; }
     public boolean isPlayerWon() { return playerWon; }
     public boolean isPlayerFinished() { return playerFinished; }
     public double getRaceDistance() { return raceDistance; }
