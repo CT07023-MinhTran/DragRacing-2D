@@ -1,0 +1,15 @@
+<resources>
+    <color name="primary">#E53935</color>
+    <color name="primary_dark">#B71C1C</color>
+    <color name="accent">#FFD600</color>
+    <color name="bg_dark">#20262B</color>
+    <color name="bg_card">#30383D</color>
+    <color name="bg_card_secondary">#414B50</color>
+    <color name="text_white">#FFFFFF</color>
+    <color name="text_gray">#D0D7D9</color>
+    <color name="green_zone">#00E676</color>
+    <color name="orange_zone">#FF9100</color>
+    <color name="red_zone">#FF1744</color>
+    <color name="nitro_blue">#00B0FF</color>
+    <color name="gold">#FFD700</color>
+</resources>

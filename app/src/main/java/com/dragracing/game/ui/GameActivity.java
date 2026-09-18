@@ -1,0 +1,222 @@
+package com.dragracing.game.ui;
+
+import android.content.Intent;
+import android.graphics.Color;
+import android.os.Bundle;
+import android.view.View;
+import android.widget.FrameLayout;
+import androidx.appcompat.app.AppCompatActivity;
+import com.dragracing.game.R;
+import com.dragracing.game.data.Car;
+import com.dragracing.game.data.PlayerData;
+import com.dragracing.game.engine.RaceEngine;
+import com.dragracing.game.render.TrackRenderer;
+import java.util.List;
+import java.util.Random;
+
+public class GameActivity extends AppCompatActivity {
+    private FrameLayout gameContainer;
+    private GameView gameView;
+    private RaceEngine raceEngine;
+    private String raceMode;
+    private int difficulty;
+    private double raceDistance;
+    private boolean isBossRace;
+    private int environmentIndex = -1;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_game);
+
+        // Hide navigation bar and status bar for immersive full screen
+        hideSystemUI();
+
+        gameContainer = findViewById(R.id.gameContainer);
+        raceMode = getIntent().getStringExtra("race_mode");
+        if (raceMode == null) raceMode = "QUICK";
+        difficulty = getIntent().getIntExtra("difficulty", 1);
+        isBossRace = getIntent().getBooleanExtra("is_boss", false);
+        environmentIndex = getIntent().getIntExtra("environment_index", -1);
+        
+        if ("CAREER".equals(raceMode)) {
+            // Random distance for career races: 1/4, 1/2 or 1 mile
+            double[] distances = {RaceEngine.DISTANCE_1_4, RaceEngine.DISTANCE_1_2, RaceEngine.DISTANCE_1};
+            raceDistance = distances[new Random().nextInt(distances.length)];
+        } else {
+            raceDistance = getIntent().getDoubleExtra("distance", RaceEngine.DISTANCE_1_4);
+        }
+
+        startRace();
+    }
+
+    private void hideSystemUI() {
+        getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                        | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_FULLSCREEN
+        );
+    }
+
+    private void startRace() {
+        PlayerData playerData = PlayerData.getInstance(this);
+        Car playerCar = playerData.getCurrentCar();
+        Car opponentCar = null;
+
+        if (!"TEST".equals(raceMode)) {
+            opponentCar = generateOpponentCar(playerCar, raceMode, difficulty);
+        }
+
+        raceEngine = new RaceEngine(playerCar, opponentCar, raceMode, difficulty, raceDistance);
+
+        if (gameView != null) {
+            gameContainer.removeView(gameView);
+        }
+
+        gameView = new GameView(this, raceEngine, new GameView.RaceFinishListener() {
+            @Override
+            public void onRaceFinished(RaceEngine engine) {
+                runOnUiThread(() -> showResultDialog(engine));
+            }
+
+            @Override
+            public void onPauseRequested() {
+                runOnUiThread(() -> showPauseDialog());
+            }
+        });
+
+        TrackRenderer.EnvironmentType[] environments = TrackRenderer.EnvironmentType.values();
+        TrackRenderer.EnvironmentType envType;
+        if (environmentIndex >= 0 && environmentIndex < environments.length) {
+            envType = environments[environmentIndex];
+        } else if ("CAREER".equals(raceMode)) {
+            int careerStep = getIntent().getIntExtra("career_step", 0);
+            envType = TrackRenderer.EnvironmentType.careerEnvironment(difficulty, careerStep, isBossRace);
+        } else {
+            envType = environments[new Random().nextInt(environments.length)];
+        }
+        gameView.getTrackRenderer().setEnvironmentType(envType);
+
+        gameContainer.addView(gameView);
+    }
+
+    private Car generateOpponentCar(Car playerCar, String mode, int diff) {
+        List<Car> allCars = PlayerData.getInstance(this).getAllCars();
+        Car base;
+
+        if ("CAREER".equals(mode)) {
+            if (isBossRace) {
+                // Boss uses a specific car for the stage
+                int index = Math.min(allCars.size() - 1, Math.max(0, diff - 1));
+                base = allCars.get(index);
+            } else {
+                int careerStep = getIntent().getIntExtra("career_step", 0);
+                int index = Math.max(0, diff - 2 + (careerStep % 2));
+                index = Math.min(allCars.size() - 1, index);
+                base = allCars.get(index);
+            }
+        } else {
+            // Quick race uses the player's current car as the opponent baseline.
+            base = playerCar;
+        }
+
+        // Clone car specs for AI opponent
+        double hpMult = "QUICK".equals(mode) ? 1.0 : (0.85 + diff * 0.08);
+        if (isBossRace) hpMult += 0.15; // Bosses are harder
+
+        Car opp = new Car(
+                "ai_" + base.getId(),
+                (isBossRace ? "BOSS " : "Rival ") + base.getName(),
+                base.getCarClass(),
+                base.getPrice(),
+                Color.parseColor(isBossRace ? "#FFD600" : "#E91E63"), 
+                base.getBaseHorsepower() * hpMult,
+                base.getBaseWeight(),
+                base.getBaseGrip(),
+                base.getBaseShiftTime(),
+                base.getMaxRpm(),
+                base.getIdleRpm(),
+                base.getOptimalShiftMinRpm(),
+                base.getOptimalShiftMaxRpm(),
+                base.getGearRatios(),
+                base.getFinalDrive(),
+                base.getBodyType()
+        );
+        opp.setImageResourceName(base.getImageResourceName());
+
+        if ("QUICK".equals(mode)) {
+            opp.setEngineLevel(base.getEngineLevel());
+            opp.setTurboLevel(base.getTurboLevel());
+            opp.setNitroLevel(base.getNitroLevel());
+            opp.setTiresLevel(base.getTiresLevel());
+            opp.setGearboxLevel(base.getGearboxLevel());
+            opp.setWeightLevel(base.getWeightLevel());
+            opp.setColor(base.getColor());
+        }
+
+        // Equip AI with upgrades matching difficulty
+        int level = "QUICK".equals(mode) ? 0 : Math.min(5, diff - 1);
+        if (isBossRace) level = Math.min(5, diff);
+
+        opp.setEngineLevel(level);
+        opp.setTiresLevel(level);
+        opp.setNitroLevel(diff >= 2 ? level : 0);
+
+        return opp;
+    }
+
+    private void showResultDialog(RaceEngine engine) {
+        ResultDialog dialog = new ResultDialog(this, engine, new ResultDialog.DialogActionCallback() {
+            @Override
+            public void onRematch() {
+                startRace();
+            }
+
+            @Override
+            public void onGarage() {
+                Intent intent = new Intent(GameActivity.this, GarageActivity.class);
+                startActivity(intent);
+                finish();
+            }
+
+            @Override
+            public void onContinue() {
+                if ("CAREER".equals(raceMode) && engine.isPlayerWon() && !engine.isFalseStart()) {
+                    PlayerData.getInstance(GameActivity.this).advanceCareer();
+                }
+                finish();
+            }
+        });
+        dialog.show();
+    }
+
+    private void showPauseDialog() {
+        gameView.setPaused(true);
+        PauseDialog dialog = new PauseDialog(this, new PauseDialog.PauseActionCallback() {
+            @Override
+            public void onContinue() {
+                gameView.setPaused(false);
+            }
+
+            @Override
+            public void onSetting() {
+                // In a real app, this would open settings
+            }
+
+            @Override
+            public void onQuit() {
+                finish();
+            }
+        });
+        dialog.show();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        hideSystemUI();
+    }
+}

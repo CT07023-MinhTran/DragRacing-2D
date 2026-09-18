@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">Drag Racing 2D</string>
+    <string name="play">ĐUA NGAY</string>
+    <string name="career">GIẢI ĐẤU (CAREER)</string>
+    <string name="garage">GARAGE XE</string>
+    <string name="test_run">CHẠY THỬ (DYNO)</string>
+    <string name="quit">THOÁT</string>
+    <string name="cash_format">$%s</string>
+    <string name="upgrades">NÂNG CẤP</string>
+    <string name="buy_car">MUA XE</string>
+    <string name="paint">SƠN XE</string>
+    <string name="engine">Động cơ</string>
+    <string name="turbo">Turbo / Nén khí</string>
+    <string name="nitro">Hệ thống Nitro</string>
+    <string name="tires">Lốp đua</string>
+    <string name="gearbox">Hộp số</string>
+    <string name="weight">Giảm trọng lượng</string>
+</resources>

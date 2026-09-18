@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="tvSpecHP" type="id" />
+    <item name="tvSpecWeight" type="id" />
+    <item name="tvSpecGrip" type="id" />
+    <item name="tvSpecShiftTime" type="id" />
+    <item name="tvSpecRpmRange" type="id" />
+    <item name="tvSpecNitro" type="id" />
+</resources>

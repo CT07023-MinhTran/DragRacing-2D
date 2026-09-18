@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Dark floor -->
+    <item>
+        <shape>
+            <gradient
+                android:angle="270"
+                android:endColor="#20262B"
+                android:startColor="#4A5558" />
+        </shape>
+    </item>
+
+    <!-- Floor Grid / Lines -->
+    <item android:top="400dp">
+        <shape>
+            <solid android:color="#394348" />
+        </shape>
+    </item>
+
+    <!-- Wall detail -->
+    <item android:bottom="200dp">
+        <shape>
+            <gradient
+                android:angle="270"
+                android:endColor="#293337"
+                android:startColor="#607176" />
+        </shape>
+    </item>
+
+    <!-- Decorative Industrial Line -->
+    <item android:bottom="210dp" android:top="380dp">
+        <shape>
+            <solid android:color="#FBC02D" />
+        </shape>
+    </item>
+</layer-list>
